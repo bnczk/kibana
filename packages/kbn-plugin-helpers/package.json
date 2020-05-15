@@ -22,7 +22,6 @@
     "execa": "^4.0.0",
     "globby": "^8.0.1",
     "gulp-babel": "^8.0.0",
-    "gulp-rename": "1.4.0",
     "gulp-zip": "5.0.1",
     "inquirer": "^1.2.2",
     "minimatch": "^3.0.4",
@@ -33,14 +32,14 @@
     "vinyl-fs": "^3.0.3"
   },
   "devDependencies": {
-    "@types/gulp-rename": "^0.0.33",
     "@types/gulp-zip": "^4.0.1",
     "@types/inquirer": "^6.5.0",
     "@types/node-sass": "^4.11.0",
     "@types/through2": "^2.0.35",
     "@types/through2-map": "^3.0.0",
     "@types/vinyl": "^2.0.4",
-    "typescript": "3.7.2"
+    "typescript": "3.7.2",
+    "yauzl": "^2.10.0"
   },
   "peerDependencies": {
     "@kbn/babel-preset": "1.0.0"

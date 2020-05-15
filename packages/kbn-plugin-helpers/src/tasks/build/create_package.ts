@@ -17,7 +17,7 @@
  * under the License.
  */
 
-import { relative, join } from 'path';
+import Path from 'path';
 
 import del from 'del';
 import vfs from 'vinyl-fs';
@@ -25,22 +25,16 @@ import zip from 'gulp-zip';
 
 import { pipeline, PluginConfig } from '../../lib';
 
-export async function createPackage(
-  plugin: PluginConfig,
-  buildTarget: string,
-  buildVersion: string
-) {
-  const buildId = `${plugin.id}-${buildVersion}`;
-  const buildRoot = join(buildTarget, 'kibana', plugin.id);
-  const buildFiles = [relative(buildTarget, buildRoot) + '/**/*'];
+export async function createPackage(plugin: PluginConfig, buildVersion: string) {
+  const buildDir = Path.resolve(plugin.root, 'build');
 
-  // zip up the package
+  // zip up the build files
   await pipeline(
-    vfs.src(buildFiles, { cwd: buildTarget, base: buildTarget }),
-    zip(`${buildId}.zip`),
-    vfs.dest(buildTarget)
+    vfs.src([`kibana/${plugin.id}/**/*`], { cwd: buildDir, base: buildDir }),
+    zip(`${plugin.id}-${buildVersion}.zip`),
+    vfs.dest(buildDir)
   );
 
-  // clean up the build path
-  await del(join(buildTarget, 'kibana'));
+  // delete the files that were zipped
+  await del(Path.resolve(buildDir, 'kibana'));
 }

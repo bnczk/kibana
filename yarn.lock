@@ -4080,13 +4080,6 @@
   resolved "https://registry.yarnpkg.com/@types/graphql/-/graphql-0.13.4.tgz#55ae9c29f0fd6b85ee536f5c72b4769d5c5e06b1"
   integrity sha512-B4yel4ro2nTb3v0pYO8vO6SjgvFJSrwUY+IO6TUSLdOSB+gQFslylrhRCHxvXMIhxB71mv5PEE9dAX+24S8sew==
 
-"@types/gulp-rename@^0.0.33":
-  version "0.0.33"
-  resolved "https://registry.yarnpkg.com/@types/gulp-rename/-/gulp-rename-0.0.33.tgz#38d146e97786569f74f5391a1b1f9b5198674b6c"
-  integrity sha512-FIZQvbZJj6V1gHPTzO+g/BCWpDur7fJrroae4gwV3LaoHBQ+MrR9sB+2HssK8fHv4WdY6hVNxkcft9bYatuPIA==
-  dependencies:
-    "@types/node" "*"
-
 "@types/gulp-zip@^4.0.1":
   version "4.0.1"
   resolved "https://registry.yarnpkg.com/@types/gulp-zip/-/gulp-zip-4.0.1.tgz#96cd0b994219f9ae3bbbec7ec3baa043fba9d9ef"
@@ -13564,13 +13557,6 @@ fd-slicer@1.1.0, fd-slicer@~1.1.0:
   dependencies:
     pend "~1.2.0"
 
-fd-slicer@~1.0.1:
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/fd-slicer/-/fd-slicer-1.0.1.tgz#8b5bcbd9ec327c5041bf9ab023fd6750f1177e65"
-  integrity sha1-i1vL2ewyfFBBv5qwI/1nUPEXfmU=
-  dependencies:
-    pend "~1.2.0"
-
 fecha@^2.3.3:
   version "2.3.3"
   resolved "https://registry.yarnpkg.com/fecha/-/fecha-2.3.3.tgz#948e74157df1a32fd1b12c3a3c3cdcb6ec9d96cd"
@@ -15631,11 +15617,6 @@ gulp-cli@^2.2.0:
     semver-greatest-satisfied-range "^1.1.0"
     v8flags "^3.0.1"
     yargs "^7.1.0"
-
-gulp-rename@1.4.0:
-  version "1.4.0"
-  resolved "https://registry.yarnpkg.com/gulp-rename/-/gulp-rename-1.4.0.tgz#de1c718e7c4095ae861f7296ef4f3248648240bd"
-  integrity sha512-swzbIGb/arEoFK89tPY58vg3Ok1bw+d35PfUNwWqdo7KM4jkmuGA78JiDNqR+JeZFaeeHnRg9N7aihX3YPmsyg==
 
 gulp-sourcemaps@2.6.5:
   version "2.6.5"
@@ -32485,21 +32466,13 @@ yarn-install@^0.5.1:
     chalk "^1.1.3"
     cross-spawn "^4.0.2"
 
-yauzl@2.10.0, yauzl@^2.10.0:
+yauzl@2.10.0, yauzl@^2.10.0, yauzl@^2.4.2:
   version "2.10.0"
   resolved "https://registry.yarnpkg.com/yauzl/-/yauzl-2.10.0.tgz#c7eb17c93e112cb1086fa6d8e51fb0667b79a5f9"
   integrity sha1-x+sXyT4RLLEIb6bY5R+wZnt5pfk=
   dependencies:
     buffer-crc32 "~0.2.3"
     fd-slicer "~1.1.0"
-
-yauzl@^2.4.2:
-  version "2.9.1"
-  resolved "https://registry.yarnpkg.com/yauzl/-/yauzl-2.9.1.tgz#a81981ea70a57946133883f029c5821a89359a7f"
-  integrity sha1-qBmB6nCleUYTOIPwKcWCGok1mn8=
-  dependencies:
-    buffer-crc32 "~0.2.3"
-    fd-slicer "~1.0.1"
 
 yazl@^2.5.1:
   version "2.5.1"

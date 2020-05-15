@@ -20,29 +20,69 @@
 import { resolve } from 'path';
 import { statSync } from 'fs';
 import del from 'del';
+import Yauzl from 'yauzl';
+
 import { createBuild } from '../create_build';
 import { createPackage } from '../create_package';
 import { pluginConfig } from '../../../lib';
 
 const PLUGIN_FIXTURE = resolve(__dirname, '__fixtures__/create_package_test_plugin');
 const PLUGIN = pluginConfig(PLUGIN_FIXTURE);
-const PLUGIN_BUILD_DIR = resolve(PLUGIN_FIXTURE, 'build-custom');
+const buildDir = resolve(PLUGIN.root, 'build');
 
 const buildVersion = PLUGIN.version;
 const kibanaVersion = PLUGIN.version;
 const buildFiles = PLUGIN.buildSourcePatterns;
-const packageFile = `${PLUGIN.id}-${buildVersion}.zip`;
+const archivePath = resolve(buildDir, `${PLUGIN.id}-${buildVersion}.zip`);
 
-beforeAll(() => del(PLUGIN_BUILD_DIR));
-afterAll(() => del(PLUGIN_BUILD_DIR));
+beforeAll(() => del(buildDir));
+afterAll(() => del(buildDir));
+
+function getEntryNames() {
+  return new Promise((resolve, reject) => {
+    Yauzl.open(
+      archivePath,
+      {
+        lazyEntries: false,
+      },
+      (error, zip) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        const entryNames = [];
+
+        zip.on('entry', entry => {
+          entryNames.push(entry.fileName);
+        });
+
+        zip.on('end', () => {
+          resolve(entryNames.sort());
+        });
+
+        zip.on('error', reject);
+      }
+    );
+  });
+}
 
 describe('creating the package', () => {
   it('creates zip file in build target path', async () => {
-    await createBuild(PLUGIN, PLUGIN_BUILD_DIR, buildVersion, kibanaVersion, buildFiles);
-    await createPackage(PLUGIN, PLUGIN_BUILD_DIR, buildVersion);
-
-    const zipFile = resolve(PLUGIN_BUILD_DIR, packageFile);
-    const stats = statSync(zipFile);
+    await createBuild(PLUGIN, buildVersion, kibanaVersion, buildFiles);
+    await createPackage(PLUGIN, buildVersion);
+    const stats = statSync(archivePath);
     expect(stats.isFile()).toBe(true);
+    expect(await getEntryNames()).toMatchInlineSnapshot(`
+      Array [
+        "kibana/create_package_test_plugin/index.js",
+        "kibana/create_package_test_plugin/node_modules/",
+        "kibana/create_package_test_plugin/package.json",
+        "kibana/create_package_test_plugin/public/",
+        "kibana/create_package_test_plugin/public/hack.js",
+        "kibana/create_package_test_plugin/translations/",
+        "kibana/create_package_test_plugin/translations/es.json",
+      ]
+    `);
   });
 });

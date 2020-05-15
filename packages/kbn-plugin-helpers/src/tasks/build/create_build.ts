@@ -17,16 +17,15 @@
  * under the License.
  */
 
-import { relative } from 'path';
-import path from 'path';
+import Path from 'path';
+import Fs from 'fs';
 
-import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 import execa from 'execa';
 import sass from 'node-sass';
 import del from 'del';
 import File from 'vinyl';
 import vfs from 'vinyl-fs';
-import rename from 'gulp-rename';
 import through from 'through2';
 import minimatch from 'minimatch';
 // @ts-ignore
@@ -36,30 +35,19 @@ import { ToolingLog } from '@kbn/dev-utils';
 import { OptimizerConfig, runOptimizer, logOptimizerState } from '@kbn/optimizer';
 
 import { PluginConfig, winCmd, pipeline } from '../../lib';
-import { rewritePackageJson } from './rewrite_package_json';
+import { gitInfo } from './git_info';
 
-// `link:` dependencies create symlinks, but we don't want to include symlinks
-// in the built zip file. Therefore we remove all symlinked dependencies, so we
-// can re-create them when installing the plugin.
-function removeSymlinkDependencies(root: string) {
-  const nodeModulesPattern = path.join(root, '**', 'node_modules', '**');
-
+function tapFiles(fn: (file: File) => void) {
   return through.obj((file: File, _, cb) => {
-    const isSymlink = file.symlink != null;
-    const isDependency = minimatch(file.path, nodeModulesPattern);
-
-    if (isSymlink && isDependency) {
-      unlinkSync(file.path);
-    }
-
-    cb();
+    fn(file);
+    cb(null, file);
   });
 }
 
 // parse a ts config file
 function parseTsconfig(pluginSourcePath: string, configPath: string) {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const ts = require(path.join(pluginSourcePath, 'node_modules', 'typescript'));
+  const ts = require(Path.join(pluginSourcePath, 'node_modules', 'typescript'));
 
   const { error, config } = ts.parseConfigFileTextToJson(
     configPath,
@@ -74,7 +62,7 @@ function parseTsconfig(pluginSourcePath: string, configPath: string) {
 }
 
 // transpile with babel
-async function transpileWithBabel(srcGlobs: string[], buildRoot: string, presets: string[]) {
+async function transpileWithBabel(srcGlobs: string[], buildDir: string, presets: string[]) {
   await pipeline(
     vfs.src(
       srcGlobs.concat([
@@ -85,7 +73,7 @@ async function transpileWithBabel(srcGlobs: string[], buildRoot: string, presets
         '!**/__tests__/**',
       ]),
       {
-        cwd: buildRoot,
+        cwd: buildDir,
       }
     ),
 
@@ -94,51 +82,27 @@ async function transpileWithBabel(srcGlobs: string[], buildRoot: string, presets
       presets,
     }),
 
-    vfs.dest(buildRoot)
+    vfs.dest(buildDir)
   );
 }
 
-export async function createBuild(
-  plugin: PluginConfig,
-  buildTarget: string,
-  buildVersion: string,
-  kibanaVersion: string,
-  files: string[]
-) {
-  const buildSource = plugin.root;
-  const buildRoot = path.join(buildTarget, 'kibana', plugin.id);
-  const absBuildRoot = relative(buildTarget, buildRoot);
+export async function createBuild({
+  plugin,
+  buildVersion,
+  kibanaVersion,
+  files,
+}: {
+  plugin: PluginConfig;
+  buildVersion: string;
+  kibanaVersion: string;
+  files: string[];
+}) {
+  const buildDir = Path.resolve(plugin.root, 'build/kibana', plugin.id);
+  const sourcePkgJsonPath = Path.resolve(plugin.root, 'package.json');
 
-  await del(buildTarget);
+  await del(Path.resolve(plugin.root, 'build'));
 
-  // copy source files and apply some transformations in the process
-  await pipeline(
-    vfs.src(files, {
-      cwd: buildSource,
-      base: buildSource,
-      allowEmpty: true,
-    }),
-
-    // modify the package.json file
-    rewritePackageJson(buildSource, buildVersion, kibanaVersion),
-
-    // put all files inside the correct directories
-    rename(function nestFileInDir(filePath) {
-      const nonRelativeDirname = filePath.dirname!.replace(/^(\.\.\/?)+/g, '');
-      filePath.dirname = path.join(absBuildRoot, nonRelativeDirname);
-    }),
-
-    // write files back to disk
-    vfs.dest(buildTarget)
-  );
-
-  // install packages in build
-  if (!plugin.skipInstallDependencies) {
-    execa.sync(winCmd('yarn'), ['install', '--production', '--pure-lockfile'], {
-      cwd: buildRoot,
-    });
-  }
-
+  // compile kibana platform plugins
   if (plugin.usesKp) {
     const config = OptimizerConfig.create({
       repoRoot: plugin.kibanaRoot,
@@ -156,28 +120,80 @@ export async function createBuild(
     await runOptimizer(config)
       .pipe(logOptimizerState(log, config))
       .toPromise();
+
+    // copy optimizer output to build
+    await pipeline(
+      vfs.src(['**/*'], { cwd: Path.resolve(plugin.root, 'target/public') }),
+      vfs.dest(Path.resolve(buildDir, 'target/public'))
+    );
+
+    del.sync(Path.resolve(plugin.root, 'target'));
+  }
+
+  // copy source files and apply some transformations in the process
+  await pipeline(
+    vfs.src(files, {
+      cwd: plugin.root,
+      base: plugin.root,
+      allowEmpty: true,
+    }),
+
+    // update the package.json file
+    tapFiles(file => {
+      if (file.path !== sourcePkgJsonPath) {
+        return;
+      }
+
+      const pkg = JSON.parse(file.contents!.toString('utf8'));
+      pkg.kibana = {
+        ...pkg.kibana,
+        version: kibanaVersion,
+      };
+      pkg.version = buildVersion;
+      pkg.build = {
+        git: gitInfo(plugin.root),
+        date: new Date().toString(),
+      };
+
+      // remove development properties from the package file
+      delete pkg.scripts;
+      delete pkg.devDependencies;
+
+      file.contents = Buffer.from(JSON.stringify(pkg, null, 2));
+    }),
+
+    vfs.dest(buildDir)
+  );
+
+  // install packages in build
+  if (!plugin.skipInstallDependencies) {
+    execa.sync(winCmd('yarn'), ['install', '--production', '--pure-lockfile'], {
+      cwd: buildDir,
+    });
   }
 
   // compile stylesheet
   if (typeof plugin.styleSheetToCompile === 'string') {
-    const outputFileName =
-      path.basename(plugin.styleSheetToCompile, path.extname(plugin.styleSheetToCompile)) + '.css';
-    const output = path.join(buildRoot, path.dirname(plugin.styleSheetToCompile), outputFileName);
+    const absSource = plugin.styleSheetToCompile;
+    const relativeSource = Path.relative(plugin.root, absSource);
+    const sourceExt = Path.extname(plugin.styleSheetToCompile);
+    const absOutput = Path.resolve(buildDir, `${relativeSource.slice(0, -sourceExt.length)}.css`);
+    const rendered = sass.renderSync({ file: absSource, absOutput });
 
-    const rendered = sass.renderSync({ file: plugin.styleSheetToCompile, output });
-    writeFileSync(output, rendered.css);
+    Fs.mkdirSync(Path.dirname(absOutput), { recursive: true });
+    writeFileSync(absOutput, rendered.css);
 
-    del.sync([path.join(buildRoot, '**', '*.s{a,c}ss')]);
+    del.sync([Path.resolve(buildDir, '**/*.s{a,c}ss')]);
   }
 
   // transform typescript to js and clean out typescript
-  const tsConfigPath = path.join(buildRoot, 'tsconfig.json');
-  if (existsSync(tsConfigPath)) {
+  const tsConfigPath = Path.join(buildDir, 'tsconfig.json');
+  if (Fs.existsSync(tsConfigPath)) {
     // attempt to patch the extends path in the tsconfig file
-    const buildConfig = parseTsconfig(buildSource, tsConfigPath);
+    const buildConfig = parseTsconfig(plugin.root, tsConfigPath);
 
     if (buildConfig.extends) {
-      buildConfig.extends = path.join(relative(buildRoot, buildSource), buildConfig.extends);
+      buildConfig.extends = Path.join(Path.relative(buildDir, plugin.root), buildConfig.extends);
 
       writeFileSync(tsConfigPath, JSON.stringify(buildConfig));
     }
@@ -185,31 +201,33 @@ export async function createBuild(
     // Transpile ts server code
     //
     // Include everything except content from public folders
-    await transpileWithBabel(['**/*.{ts,tsx}', '!**/public/**'], buildRoot, [
+    await transpileWithBabel(['**/*.{ts,tsx}', '!**/public/**'], buildDir, [
       require.resolve('@kbn/babel-preset/node_preset'),
     ]);
 
     // Transpile ts client code
     //
     // Include everything inside a public directory
-    await transpileWithBabel(['**/public/**/*.{ts,tsx}'], buildRoot, [
+    await transpileWithBabel(['**/public/**/*.{ts,tsx}'], buildDir, [
       require.resolve('@kbn/babel-preset/webpack_preset'),
     ]);
 
-    del.sync([
-      path.join(buildRoot, '**', '*.{ts,tsx,d.ts}'),
-      path.join(buildRoot, 'tsconfig.json'),
-    ]);
+    del.sync([Path.join(buildDir, '**', '*.{ts,tsx,d.ts}'), Path.join(buildDir, 'tsconfig.json')]);
   }
 
-  // remove symlinked dependencies
+  // `link:` dependencies create symlinks, but we don't want to include symlinks
+  // in the built zip file. Therefore we remove all symlinked dependencies, so we
+  // can re-create them when installing the plugin.
   await pipeline(
-    vfs.src([relative(absBuildRoot, '**/*')], {
-      cwd: buildTarget,
-      base: buildTarget,
+    vfs.src(['**/*'], {
+      cwd: buildDir,
       resolveSymlinks: false,
     }),
 
-    removeSymlinkDependencies(buildRoot)
+    tapFiles(file => {
+      if (file.symlink && minimatch(file.path, '**/node_modules/**')) {
+        Fs.unlinkSync(file.path);
+      }
+    })
   );
 }

@@ -26,6 +26,11 @@ const PLUGIN_FIXTURE = resolve(__dirname, '__fixtures__/build_action_test_plugin
 const PLUGIN_BUILD_DIR = resolve(PLUGIN_FIXTURE, 'build');
 const plugin = pluginConfig(PLUGIN_FIXTURE);
 
+expect.addSnapshotSerializer({
+  test: v => v === plugin,
+  print: () => '<PluginConfig>',
+});
+
 describe('creating build zip', () => {
   const { buildTask } = require('../build_task');
 
@@ -51,7 +56,7 @@ describe('creating build zip', () => {
   });
 });
 
-describe('calling create_build', () => {
+describe('createBuild args', () => {
   let mockBuild;
   let buildTask;
 
@@ -62,14 +67,6 @@ describe('calling create_build', () => {
     ({ buildTask } = require('../build_task'));
   });
 
-  const nameArgs = ([plugin, buildTarget, buildVersion, kibanaVersion, files]) => ({
-    plugin,
-    buildTarget,
-    buildVersion,
-    kibanaVersion,
-    files,
-  });
-
   it('takes optional build version', async () => {
     const options = {
       buildVersion: '1.2.3',
@@ -78,11 +75,25 @@ describe('calling create_build', () => {
 
     await buildTask({ plugin, options });
 
-    expect(mockBuild.mock.calls).toHaveLength(1);
-
-    const { buildVersion, kibanaVersion } = nameArgs(mockBuild.mock.calls[0]);
-    expect(buildVersion).toBe('1.2.3');
-    expect(kibanaVersion).toBe('4.5.6');
+    expect(mockBuild.mock.calls).toMatchInlineSnapshot(`
+      Array [
+        Array [
+          Object {
+            "buildVersion": "1.2.3",
+            "files": Array [
+              "yarn.lock",
+              "tsconfig.json",
+              "package.json",
+              "kibana.json",
+              "index.{js,ts}",
+              "{lib,server,public,common,server,webpackShims,translations}/**/*",
+            ],
+            "kibanaVersion": "4.5.6",
+            "plugin": <PluginConfig>,
+          },
+        ],
+      ]
+    `);
   });
 
   it('uses default file list without files option', async () => {
@@ -90,8 +101,25 @@ describe('calling create_build', () => {
 
     expect(mockBuild.mock.calls).toHaveLength(1);
 
-    const { files } = nameArgs(mockBuild.mock.calls[0]);
-    plugin.buildSourcePatterns.forEach(file => expect(files).toContain(file));
+    expect(mockBuild.mock.calls).toMatchInlineSnapshot(`
+      Array [
+        Array [
+          Object {
+            "buildVersion": "0.0.1",
+            "files": Array [
+              "yarn.lock",
+              "tsconfig.json",
+              "package.json",
+              "kibana.json",
+              "index.{js,ts}",
+              "{lib,server,public,common,server,webpackShims,translations}/**/*",
+            ],
+            "kibanaVersion": "6.0.0",
+            "plugin": <PluginConfig>,
+          },
+        ],
+      ]
+    `);
   });
 
   it('uses only files passed in', async () => {
@@ -101,10 +129,23 @@ describe('calling create_build', () => {
 
     await buildTask({ plugin, options });
 
-    expect(mockBuild.mock.calls).toHaveLength(1);
-
-    const { files } = nameArgs(mockBuild.mock.calls[0]);
-    options.files.forEach(file => expect(files).toContain(file));
+    expect(mockBuild.mock.calls).toMatchInlineSnapshot(`
+      Array [
+        Array [
+          Object {
+            "buildVersion": "0.0.1",
+            "files": Array [
+              "index.js",
+              "LICENSE.txt",
+              "plugins/**/*",
+              "{server,public}/**/*",
+            ],
+            "kibanaVersion": "6.0.0",
+            "plugin": <PluginConfig>,
+          },
+        ],
+      ]
+    `);
   });
 
   it('rejects returned promise when build fails', async () => {
@@ -112,6 +153,6 @@ describe('calling create_build', () => {
       throw new Error('foo bar');
     });
 
-    await expect(buildTask({ plugin })).rejects.toThrowErrorMatchingSnapshot();
+    await expect(buildTask({ plugin })).rejects.toThrowErrorMatchingInlineSnapshot(`"foo bar"`);
   });
 });

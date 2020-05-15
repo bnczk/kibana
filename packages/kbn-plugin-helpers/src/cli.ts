@@ -46,15 +46,10 @@ program
   .description('Build a distributable archive')
   .on('--help', docs('build'))
   .option('--skip-archive', "Don't create the zip file, leave the build path alone")
-  .option(
-    '-d, --build-destination <path>',
-    'Target path for the build output, absolute or relative to the plugin root'
-  )
   .option('-b, --build-version <version>', 'Version for the build output')
   .option('-k, --kibana-version <version>', 'Kibana version for the build output')
   .action(
     createCommanderAction('build', (command, files) => ({
-      buildDestination: command.buildDestination,
       buildVersion: command.buildVersion,
       kibanaVersion: command.kibanaVersion,
       skipArchive: Boolean(command.skipArchive),

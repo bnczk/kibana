@@ -17,7 +17,6 @@
  * under the License.
  */
 
-import { join, resolve } from 'path';
 import inquirer from 'inquirer';
 
 import { TaskContext } from '../../lib';
@@ -28,7 +27,6 @@ export async function buildTask({ plugin, options = {} }: TaskContext) {
   let buildVersion = plugin.version;
   let kibanaVersion = plugin.pkg.kibana?.version || plugin.pkg.version;
   let buildFiles = plugin.buildSourcePatterns;
-  let buildTarget = join(plugin.root, 'build');
 
   // allow source files to be overridden
   if (options.files && options.files.length) {
@@ -36,17 +34,21 @@ export async function buildTask({ plugin, options = {} }: TaskContext) {
   }
 
   // allow options to override plugin info
-  if (options.buildDestination) buildTarget = resolve(plugin.root, options.buildDestination);
   if (options.buildVersion) buildVersion = options.buildVersion;
   if (options.kibanaVersion) kibanaVersion = options.kibanaVersion;
 
   const chosenKibanaVersion =
     !kibanaVersion || kibanaVersion === 'kibana' ? await askForKibanaVersion() : kibanaVersion;
 
-  await createBuild(plugin, buildTarget, buildVersion, chosenKibanaVersion, buildFiles);
+  await createBuild({
+    plugin,
+    buildVersion,
+    kibanaVersion: chosenKibanaVersion,
+    files: buildFiles,
+  });
 
   if (!options.skipArchive) {
-    await createPackage(plugin, buildTarget, buildVersion);
+    await createPackage(plugin, buildVersion);
   }
 }
 

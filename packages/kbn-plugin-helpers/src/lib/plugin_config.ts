@@ -50,12 +50,15 @@ export function pluginConfig(root: string = process.cwd()): PluginConfig {
     'package.json',
     'kibana.json',
     'index.{js,ts}',
-    '{lib,server,server,webpackShims,translations}/**/*',
+    usesKp
+      ? '{lib,server,common,server,translations}/**/*'
+      : '{lib,server,public,common,server,webpackShims,translations}/**/*',
   ];
 
   const isXpack = pkg.name === 'x-pack';
+  const isFixture = root.includes('__fixtures__');
 
-  if (!isXpack && Path.resolve(root, '..') !== Path.resolve(REPO_ROOT, 'plugins')) {
+  if (!(isXpack || isFixture) && Path.resolve(root, '..') !== Path.resolve(REPO_ROOT, 'plugins')) {
     throw new Error(
       `Plugin located at ${root} must be moved to the plugins directory within the Kibana repo`
     );
